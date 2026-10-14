@@ -1,0 +1,67 @@
+# Folivox studio on Docker Swarm. Full walkthrough: docs/docker.md
+#
+#   docker build -t registry.example.lan/folivox:latest . && docker push registry.example.lan/folivox:latest
+#   openssl rand -base64 24 | docker secret create folivox_ui_token -
+#   docker node update --label-add folivox=true <the GPU node>
+#   FOLIVOX_IMAGE=registry.example.lan/folivox:latest FOLIVOX_HOSTS="folivox.example.lan" \
+#     docker stack deploy -c deploy/docker-stack.yml folivox
+#
+# One replica only: a render runs inside the studio process and its state lives in /data on one node.
+
+services:
+  studio:
+    image: ${FOLIVOX_IMAGE:-folivox:latest}
+    environment:
+      # names the browser uses to reach the studio (the DNS-rebinding guard); space-separated, * for any
+      FOLIVOX_UI_ALLOW_HOSTS: ${FOLIVOX_HOSTS:-*}
+      FOLIVOX_UI_TOKEN_FILE: /run/secrets/folivox_ui_token
+    secrets:
+      - folivox_ui_token
+      # cloud engines (optional): create the secret, then uncomment it here and at the bottom
+      # - OPENAI_API_KEY
+      # - ELEVENLABS_API_KEY
+    ports:
+      - target: 8765
+        published: ${FOLIVOX_PORT:-8765}
+        protocol: tcp
+        mode: host   # the browser talks to the node that runs the studio; the routing mesh works too
+    volumes:
+      - folivox-data:/data                  # models (~8 GB), voices, studio state, config
+      - type: bind                          # finished audiobooks; any folder on the node (or an NFS mount)
+        source: ${FOLIVOX_OUTPUT:-/srv/folivox/audiobooks}
+        target: /data/Audiobooks
+      - type: tmpfs                         # Swarm has no shm_size: a bigger /dev/shm for PyTorch
+        target: /dev/shm
+        tmpfs:
+          size: 2147483648
+    stop_grace_period: 60s   # lets a render save its journal; it resumes on the next start
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.labels.folivox == true   # the node with the GPU, and where the data volume lives
+      update_config:
+        order: stop-first                  # never two studios on one volume
+      restart_policy:
+        condition: any
+        delay: 10s
+      resources:
+        reservations:
+          memory: 8G
+          # GPU: Swarm cannot use "devices"; the node advertises the GPU as a generic resource instead
+          # (docs/docker.md, "GPU on Swarm"). Remove this block for a CPU-only image.
+          generic_resources:
+            - discrete_resource_spec:
+                kind: NVIDIA-GPU
+                value: 1
+
+volumes:
+  folivox-data:
+
+secrets:
+  folivox_ui_token:
+    external: true
+  # OPENAI_API_KEY:
+  #   external: true
+  # ELEVENLABS_API_KEY:
+  #   external: true

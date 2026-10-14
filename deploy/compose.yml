@@ -1,0 +1,29 @@
+# Folivox studio on a single Docker host (no Swarm): docker compose -f deploy/compose.yml up -d --build
+# Then: docker compose -f deploy/compose.yml logs studio   (prints the link with the token on first start)
+services:
+  studio:
+    build:
+      context: ..
+      args:
+        TORCH: ${FOLIVOX_TORCH:-cuda}   # cuda, cpu or cu128 (RTX 50)
+    image: folivox:latest
+    environment:
+      FOLIVOX_UI_ALLOW_HOSTS: ${FOLIVOX_HOSTS:-*}
+    ports:
+      - "${FOLIVOX_PORT:-8765}:8765"
+    volumes:
+      - folivox-data:/data
+      - ${FOLIVOX_OUTPUT:-./audiobooks}:/data/Audiobooks
+    shm_size: 2gb
+    init: false   # the image runs tini itself
+    restart: unless-stopped
+    stop_grace_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+volumes:
+  folivox-data:

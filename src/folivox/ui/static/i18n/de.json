@@ -138,6 +138,7 @@
  "gp.id": "ID <small>(a–z, 0–9, - _)</small>",
  "gp.add": "Diese Stimme hinzufügen",
  "run.ready": "Ihr Hörbuch ist fertig",
+ "run.download": "Herunterladen",
  "run.show": "Im Ordner zeigen",
  "run.hide": "Ausblenden",
  "run.ack": "Mir ist bewusst, dass der Buchtext an diesen Online-Dienst gesendet und meinem Konto zum oben genannten Preis berechnet wird. Ich prüfe die Bedingungen des Anbieters (<a id=\"eng-terms\" href=\"#\" target=\"_blank\" rel=\"noopener\">Bedingungen</a>), bevor ich das Audio weitergebe oder verkaufe. Eine Vorschau mit 600 Zeichen kostet ein paar Cent – probieren Sie sie zuerst.",

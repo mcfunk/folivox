@@ -138,6 +138,7 @@
  "gp.id": "Id <small>(a–z, 0–9, - _)</small>",
  "gp.add": "Ajouter cette voix",
  "run.ready": "Votre livre audio est prêt",
+ "run.download": "Télécharger",
  "run.show": "Afficher dans le dossier",
  "run.hide": "Masquer",
  "run.ack": "Je comprends que le texte du livre est envoyé à ce service en ligne et facturé sur mon compte au prix indiqué ci-dessus. Je vérifierai les conditions du fournisseur (<a id=\"eng-terms\" href=\"#\" target=\"_blank\" rel=\"noopener\">conditions</a>) avant de partager ou de vendre l’audio. Un aperçu de 600 caractères coûte quelques centimes : essayez-le d’abord.",

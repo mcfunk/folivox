@@ -138,6 +138,7 @@
  "gp.id": "Id <small>（a–z、0–9、- _）</small>",
  "gp.add": "添加此声音",
  "run.ready": "你的有声书已完成",
+ "run.download": "下载",
  "run.show": "在文件夹中显示",
  "run.hide": "隐藏",
  "run.ack": "我了解书的文本会发送到此在线服务，并按上方价格计入我的账户费用。在分享或出售音频之前，我会查看服务商的条款（<a id=\"eng-terms\" href=\"#\" target=\"_blank\" rel=\"noopener\">条款</a>）。600 字符的试听只需几美分，建议先试一下。",

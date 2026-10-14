@@ -408,7 +408,7 @@ textarea { font:inherit; color:inherit; background:var(--card); border:1px solid
   <div id="done-card" class="done-card" hidden>
     <div class="dc-ico">✓</div>
     <div class="dc-body"><div class="dc-title" data-i18n="run.ready">Your audiobook is ready</div><div class="dc-path" id="dc-path"></div><div class="dc-meta mute" id="dc-meta"></div>
-      <div class="row" style="margin-top:10px"><button id="dc-reveal" class="primary" data-i18n="run.show">Show in folder</button><button id="dc-close" class="chip" type="button" data-i18n="run.hide">Hide</button></div></div>
+      <div class="row" style="margin-top:10px"><a id="dc-download" download><button type="button" class="primary" data-i18n="run.download">Download</button></a> <button id="dc-reveal" data-i18n="run.show">Show in folder</button><button id="dc-close" class="chip" type="button" data-i18n="run.hide">Hide</button></div></div>
   </div>
   <div id="eng-cloud" class="eng-cloud costcard" hidden>
     <div id="eng-est"></div>
@@ -599,7 +599,7 @@ async function savePron() {
 }
 $("#pron-text").addEventListener("input", () => { clearTimeout(pronTimer); $("#pron-msg").textContent = ""; pronTimer = setTimeout(() => savePron().catch(() => {}), 700); });
 // A server started before an update lacks the routes this page uses: say so instead of failing one feature at a time.
-const PAGE_API = 2;
+const PAGE_API = 3;
 async function checkServer() {
   try { const r = await api("/api/ping"); if (!(r.api >= PAGE_API)) $("#stale").hidden = false; }
   catch (e) { if (e.message === "Not Found") $("#stale").hidden = false; }  // a server too old to have /api/ping
@@ -1230,7 +1230,7 @@ function handle(ev) {
       } else {
         setPhase(t("ph.finished"), ev.result, "done"); $("#wave").className = "wave done"; $("#hero-status").textContent = t("hero.saved"); $("#run-msg").textContent = "";
         $("#pv-play").hidden = true; $("#reveal").hidden = false;
-        $("#dc-path").textContent = ev.result || ""; $("#dc-meta").textContent = [S.audio ? t("ph.ofaudio", { t: fmtClock(S.audio) }) : "", t("ph.renderedin", { t: fmtClock(S.tLast - S.t0) })].filter(Boolean).join(" · ");
+        $("#dc-path").textContent = ev.result || ""; $("#dc-download").href = tok(`/api/jobs/${job.id}/result`); $("#dc-meta").textContent = [S.audio ? t("ph.ofaudio", { t: fmtClock(S.audio) }) : "", t("ph.renderedin", { t: fmtClock(S.tLast - S.t0) })].filter(Boolean).join(" · ");
         $("#done-card").hidden = false; $("#runbar").classList.add("redo"); setRenderLabel();
         $("#done-card").scrollIntoView({ behavior: "smooth", block: "center" });
       } break;

@@ -138,6 +138,7 @@
  "gp.id": "Id <small>(a–z, 0–9, - _)</small>",
  "gp.add": "Aggiungi questa voce",
  "run.ready": "Il tuo audiolibro è pronto",
+ "run.download": "Scarica",
  "run.show": "Mostra nella cartella",
  "run.hide": "Nascondi",
  "run.ack": "Capisco che il testo del libro viene inviato a questo servizio online e addebitato al mio account al prezzo indicato sopra. Controllerò le condizioni del fornitore (<a id=\"eng-terms\" href=\"#\" target=\"_blank\" rel=\"noopener\">condizioni</a>) prima di condividere o vendere l’audio. Un’anteprima di 600 caratteri costa pochi centesimi: provala prima.",

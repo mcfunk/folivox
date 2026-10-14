@@ -138,6 +138,7 @@
  "gp.id": "Id <small>(a–z, 0–9, - _)</small>",
  "gp.add": "Add this voice",
  "run.ready": "Your audiobook is ready",
+ "run.download": "Download",
  "run.show": "Show in folder",
  "run.hide": "Hide",
  "run.ack": "I understand that the book text is sent to this online service and billed to my account at the price above. I will check the provider's terms (<a id=\"eng-terms\" href=\"#\" target=\"_blank\" rel=\"noopener\">terms</a>) before sharing or selling the audio. A 600-character preview costs a few cents: try it first.",

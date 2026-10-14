@@ -17,15 +17,42 @@ def port_in_use(host: str, port: int) -> bool:
     return False
 
 
+WILDCARD_HOSTS = ("0.0.0.0", "::", "")
+
+
+def local_host(host: str) -> str:
+    """Where this machine reaches a studio bound to ``host`` (a wildcard bind answers on the loopback)."""
+    return "127.0.0.1" if host in WILDCARD_HOSTS else host
+
+
+def env_token() -> str | None:
+    """A token set by the deployment: ``FOLIVOX_UI_TOKEN``, or the file named by ``FOLIVOX_UI_TOKEN_FILE`` (a
+    Docker secret). At least 16 characters; shorter values are refused rather than silently weakened."""
+    import os
+    from pathlib import Path
+
+    value = os.environ.get("FOLIVOX_UI_TOKEN")
+    if not value and os.environ.get("FOLIVOX_UI_TOKEN_FILE"):
+        value = Path(os.environ["FOLIVOX_UI_TOKEN_FILE"]).read_text(encoding="utf-8")
+    if not value:
+        return None
+    value = value.strip()
+    if len(value) < 16:
+        raise SystemExit("FOLIVOX_UI_TOKEN must be at least 16 characters (try: openssl rand -base64 24)")
+    return value
+
+
 def ui_token() -> str:
-    """The access token: created once, kept in a private file in the user data dir so every run (and every
-    bookmark or old tab) uses the same one."""
+    """The access token: the deployment's (:func:`env_token`), else created once and kept in a private file in the
+    user data dir so every run (and every bookmark or old tab) uses the same one."""
     import os
     import secrets
     from pathlib import Path
 
     from platformdirs import user_data_dir
 
+    if (value := env_token()) is not None:
+        return value
     path = Path(user_data_dir("folivox", appauthor=False)) / "ui_token"
     try:
         value = path.read_text(encoding="utf-8").strip()
@@ -48,6 +75,11 @@ def read_token() -> str | None:
 
     from platformdirs import user_data_dir
 
+    try:
+        if (value := env_token()) is not None:
+            return value
+    except (OSError, SystemExit):
+        return None
     try:
         value = (Path(user_data_dir("folivox", appauthor=False)) / "ui_token").read_text(encoding="utf-8").strip()
     except OSError:
@@ -118,6 +150,7 @@ def wait_free(host: str, port: int, seconds: float = 15.0) -> bool:
 def stop_running(host: str, port: int, force: bool = False) -> dict:
     """Ask the studio on this port to exit and wait until the port is free. Exits with a message if there is no
     studio, if it is rendering (without ``force``) or if it does not stop."""
+    host = local_host(host)
     info = studio_on(host, port)
     if info is None:
         if not port_in_use(host, port):
@@ -137,7 +170,9 @@ def stop_running(host: str, port: int, force: bool = False) -> dict:
 
 
 def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, restart: bool = False,
-        force: bool = False) -> None:
+        force: bool = False, allow_hosts: tuple[str, ...] | list[str] = ()) -> None:
+    """``host``: the address to bind; anything but the loopback serves the studio to the network (the token is
+    still required). ``allow_hosts``: the names browsers use to reach it, for the DNS-rebinding guard."""
     import threading
     import webbrowser
 
@@ -145,6 +180,7 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, re
 
     from folivox.ui.app import create_app
 
+    bind, host = host, local_host(host)
     if port_in_use(host, port):
         info = studio_on(host, port)
         if info is None:
@@ -158,11 +194,18 @@ def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, re
         stop_running(host, port, force)
         print(f"Stopped the previous studio (pid {info.get('pid', '?')}).", flush=True)
 
+    from_env = env_token() is not None
     token = ui_token()
-    app = create_app(token=token, port=port)
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    app = create_app(token=token, port=port, allow_hosts=allow_hosts)
+    server = uvicorn.Server(uvicorn.Config(app, host=bind, port=port, log_level="warning"))
     app.state.request_exit = lambda: setattr(server, "should_exit", True)
     url = f"http://{host}:{port}/?token={token}"
+    if bind != host or bind not in ("127.0.0.1", "localhost", "::1"):
+        names = ", ".join(allow_hosts) or "none: only localhost works, add --allow-host"
+        print(f"Folivox UI listening on {bind or '*'}:{port} for the network. Names it answers to: {names}.",
+              flush=True)
+    if from_env:  # the deployment knows its token: keep it out of the (shared) logs
+        url = f"http://{host}:{port}/?token=<FOLIVOX_UI_TOKEN>"
     print(f"Folivox UI: {url}\nOpen this link once: the browser then keeps a cookie and you can use "
           f"http://{host}:{port}/ (bookmark it). Press Ctrl+C to stop.", flush=True)
     if open_browser:

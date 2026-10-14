@@ -28,7 +28,7 @@ from folivox.ui.jobs import JobManager, chapter_files
 STATIC = Path(__file__).parent / "static"
 # Bumped when the page starts using a route that servers started before the update do not have: the page asks
 # /api/ping and, if the server is older, tells the user to restart it.
-API_LEVEL = 2
+API_LEVEL = 3
 MAX_UPLOAD = 200 * 1024 * 1024
 PREVIEW_CHARS = 600
 
@@ -120,8 +120,10 @@ def _registries():
 
 
 def create_app(token: str | None = None, port: int | None = None, data_dir: Path | None = None,
-               render=None, services: dict | None = None) -> Starlette:
-    """``services`` (tests): ``generator(name)``, ``llm(name)`` and ``asr(lang)`` factories replacing the real ones."""
+               render=None, services: dict | None = None, allow_hosts: tuple[str, ...] | list[str] = ()) -> Starlette:
+    """``services`` (tests): ``generator(name)``, ``llm(name)`` and ``asr(lang)`` factories replacing the real ones.
+    ``allow_hosts``: more names the studio answers to besides localhost (a server, a reverse proxy), each with or
+    without ``:port``; ``*`` turns the Host check off (the token still guards the API)."""
     state = State(data_dir or Path(user_data_dir("folivox", appauthor=False)) / "ui", render)
     services = services or {}
     # what the cookie holds: derived from the token, so it survives restarts but the token itself never sits in it
@@ -129,6 +131,13 @@ def create_app(token: str | None = None, port: int | None = None, data_dir: Path
                else secrets.token_urlsafe(24))
     cookie_name = f"folivox_session_{port or 0}"
     allowed_hosts = {f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}"} if port else None
+    if allowed_hosts is not None:
+        for h in allow_hosts:
+            if h == "*":
+                allowed_hosts = None
+                break
+            has_port = re.fullmatch(r"(\[[^\]]+\]|[^:\[\]]+):\d+", h)
+            allowed_hosts |= {h} if has_port else {h, f"{h}:{port}"}
 
     # ---- handlers -------------------------------------------------------------------------------
     async def index(request: Request):
@@ -675,8 +684,40 @@ def create_app(token: str | None = None, port: int | None = None, data_dir: Path
             cmd = ["explorer", f"/select,{target}"]
         else:
             cmd = ["xdg-open", str(target if target.is_dir() else target.parent)]
-        subprocess.Popen(cmd)  # noqa: S603 — fixed argv, path comes from our own job result
+        try:
+            subprocess.Popen(cmd)  # noqa: S603 — fixed argv, path comes from our own job result
+        except OSError:  # a server or container: no file manager to show it in
+            raise ApiError("No file manager on the machine running the studio: use Download", 409) from None
         return JSONResponse({"ok": True})
+
+    async def job_result(request: Request):
+        """The finished audiobook as a download (the studio may run on another machine): the .m4b itself, or a zip
+        of the MP3 folder."""
+        import tempfile
+        import zipfile
+
+        from starlette.background import BackgroundTask
+
+        job = get_job(request)
+        if job.state != "done" or not job.result or not Path(job.result).exists():
+            raise ApiError("Nothing to download yet", 404)
+        target = Path(job.result)
+        if target.is_file():
+            return FileResponse(target, filename=target.name)
+
+        def pack() -> Path:
+            state.data_dir.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(suffix=".zip", dir=state.data_dir)
+            os.close(fd)
+            with zipfile.ZipFile(tmp, "w", zipfile.ZIP_STORED) as z:  # MP3s are already compressed
+                for f in sorted(target.rglob("*")):
+                    if f.is_file():
+                        z.write(f, Path(target.name) / f.relative_to(target))
+            return Path(tmp)
+
+        tmp = await asyncio.to_thread(pack)
+        return FileResponse(tmp, filename=f"{target.name}.zip", media_type="application/zip",
+                            background=BackgroundTask(tmp.unlink, missing_ok=True))
 
     async def job_chapter(request: Request):
         job = get_job(request)
@@ -1227,6 +1268,7 @@ def create_app(token: str | None = None, port: int | None = None, data_dir: Path
         Route("/api/jobs/{job_id}/events", job_events),
         Route("/api/jobs/{job_id}/cancel", job_cancel, methods=["POST"]),
         Route("/api/jobs/{job_id}/reveal", job_reveal, methods=["POST"]),
+        Route("/api/jobs/{job_id}/result", job_result),
         Route("/api/jobs/{job_id}/chapters/{n:int}", job_chapter),
         Route("/api/jobs/{job_id}/review", job_review),
         Route("/api/jobs/{job_id}/fragments/{key}", job_fragment),

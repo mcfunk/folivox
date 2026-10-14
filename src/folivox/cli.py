@@ -975,7 +975,14 @@ def providers():
              epilog="[bold]Examples[/]\n\n  [cyan]folivox ui --port 9000 --no-open[/]\n"
                     "  [cyan]folivox ui --restart[/]   replace the running studio (after an update)\n"
                     "  [cyan]folivox ui --stop[/]      stop the running studio")
-def ui(port: int = typer.Option(8765, "--port", help="Port to listen on (127.0.0.1 only)."),
+def ui(port: int = typer.Option(8765, "--port", envvar="FOLIVOX_UI_PORT", help="Port to listen on."),
+       host: str = typer.Option("127.0.0.1", "--host", envvar="FOLIVOX_UI_HOST",
+                                help="Address to listen on. 0.0.0.0 serves the studio to the network (a server, "
+                                     "Docker); the access token is still required."),
+       allow_host: list[str] = typer.Option([], "--allow-host", envvar="FOLIVOX_UI_ALLOW_HOSTS",
+                                            help="A name browsers use to reach the studio besides localhost (e.g. "
+                                                 "folivox.example.com, or nas:8765). Repeat it, or list them "
+                                                 "space-separated in the variable; * accepts any."),
        open_browser: bool = typer.Option(True, "--open/--no-open", show_default=False,
                                          help="Open the browser automatically (on)."),
        restart: bool = typer.Option(False, "--restart", help="Stop the studio already running on this port, "
@@ -993,10 +1000,10 @@ def ui(port: int = typer.Option(8765, "--port", help="Port to listen on (127.0.0
     from folivox.ui import run, stop_running
 
     if stop:
-        info = stop_running("127.0.0.1", port, force)
+        info = stop_running(host, port, force)
         console.print(f"Stopped the Folivox studio on port {port} (pid {info.get('pid', '?')}).")
         return
-    run(port=port, open_browser=open_browser, restart=restart, force=force)
+    run(host=host, port=port, open_browser=open_browser, restart=restart, force=force, allow_hosts=allow_host)
 
 
 GUIDE = """[bold green]Folivox is ready.[/]

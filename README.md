@@ -366,6 +366,7 @@ Your books, audiobooks, ffmpeg and anything you had before are never touched. De
 | [docs/cloud-engines.md](docs/cloud-engines.md) | Online reading engines: prices, limits, terms, spending cap |
 | [docs/providers.md](docs/providers.md) | Pluggable providers and `config.toml` |
 | [docs/ui.md](docs/ui.md) | The web studio: design, screens and API |
+| [docs/docker.md](docs/docker.md) | Running the studio on a server: Docker, Compose, Docker Swarm |
 | [docs/ui-languages.md](docs/ui-languages.md) | Interface languages and translations |
 | [docs/how-it-works.md](docs/how-it-works.md) | The pipeline in five steps |
 | [docs/support.md](docs/support.md) | Resuming, retries, `folivox doctor` and the support bundle |

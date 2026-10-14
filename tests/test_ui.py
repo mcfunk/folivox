@@ -236,6 +236,56 @@ def test_reveal_only_for_finished_jobs(client, tmp_path, monkeypatch):
     assert client.post(f"/api/jobs/{job}/reveal").status_code == 200 and calls
 
 
+
+def test_result_download_and_reveal_without_a_file_manager(client, tmp_path, monkeypatch):
+    def no_file_manager(cmd, *a, **k):
+        raise FileNotFoundError(cmd[0])
+
+    monkeypatch.setattr("subprocess.Popen", no_file_manager)
+    b = upload(client)
+    out = tmp_path / "out"
+    job = client.post("/api/jobs", json={"book_id": b["book_id"], "chapters": [1],
+                                         "options": {"output_dir": str(out), "qa": False}}).json()["id"]
+    assert wait_done(client, job)["state"] == "done"
+    assert client.get(f"/api/jobs/{job}/result").status_code == 404  # nothing written yet
+    (out / "tale.m4b").write_bytes(b"m4b-bytes")
+    r = client.get(f"/api/jobs/{job}/result")
+    assert r.status_code == 200 and r.content == b"m4b-bytes" and "tale.m4b" in r.headers["content-disposition"]
+    assert client.post(f"/api/jobs/{job}/reveal").status_code == 409  # a container: no xdg-open
+
+
+def test_result_download_zips_an_mp3_folder(client, tmp_path):
+    import io
+    import zipfile
+
+    b = upload(client)
+    out = tmp_path / "out"
+    job = client.post("/api/jobs", json={"book_id": b["book_id"], "chapters": [1],
+                                         "options": {"output_dir": str(out), "qa": False, "mp3": True}}).json()
+    assert wait_done(client, job["id"])["state"] == "done"
+    result = Path(client.get(f"/api/jobs/{job['id']}").json()["result"])
+    result.mkdir(parents=True, exist_ok=True)
+    (result / "01.mp3").write_bytes(b"one")
+    r = client.get(f"/api/jobs/{job['id']}/result")
+    assert r.status_code == 200 and r.headers["content-type"] == "application/zip"
+    names = zipfile.ZipFile(io.BytesIO(r.content)).namelist()
+    assert names == [f"{result.name}/01.mp3"]
+    assert not list((tmp_path / "ui").glob("*.zip"))  # the temporary zip is removed after sending
+
+
+def test_allow_hosts_for_a_server(tmp_path):
+    app = create_app(token=TOKEN, port=8765, data_dir=tmp_path / "ui", render=fake_render,
+                     allow_hosts=["folivox.example.com", "nas:9000"])
+    c = TestClient(app, base_url="http://127.0.0.1:8765", headers={"X-Folivox-Token": TOKEN})
+    for host in ("folivox.example.com", "folivox.example.com:8765", "nas:9000", "localhost:8765"):
+        assert c.get("/api/voices", headers={"Host": host}).status_code == 200, host
+    for host in ("nas:8765", "evil.example", "folivox.example.com:1"):
+        assert c.get("/api/voices", headers={"Host": host}).status_code == 403, host
+    assert c.get("/api/voices", headers={"Host": "folivox.example.com", "X-Folivox-Token": "x"}).status_code == 401
+    anything = create_app(token=TOKEN, port=8765, data_dir=tmp_path / "ui", render=fake_render, allow_hosts=["*"])
+    c = TestClient(anything, base_url="http://127.0.0.1:8765", headers={"X-Folivox-Token": TOKEN})
+    assert c.get("/api/voices", headers={"Host": "anything.lan"}).status_code == 200
+
 def test_voices_carry_waveform_and_auto_choice(client):
     r = client.get("/api/voices").json()
     v = r["voices"][0]
@@ -278,6 +328,23 @@ def test_ui_token_is_stable_and_private(tmp_path, monkeypatch):
     first = ui_token()
     assert len(first) >= 24 and ui_token() == first
     assert stat.S_IMODE((tmp_path / "ui_token").stat().st_mode) == 0o600
+
+
+def test_ui_token_from_the_deployment(tmp_path, monkeypatch):
+    monkeypatch.setattr("platformdirs.user_data_dir", lambda *a, **k: str(tmp_path))
+    monkeypatch.delenv("FOLIVOX_UI_TOKEN", raising=False)
+    from folivox.ui import read_token, ui_token
+
+    secret = tmp_path / "secret"
+    secret.write_text("from-a-docker-secret-123\n")
+    monkeypatch.setenv("FOLIVOX_UI_TOKEN_FILE", str(secret))
+    assert ui_token() == read_token() == "from-a-docker-secret-123"
+    monkeypatch.setenv("FOLIVOX_UI_TOKEN", "from-the-environment-456")  # the variable wins over the file
+    assert ui_token() == "from-the-environment-456"
+    assert not (tmp_path / "ui_token").exists()  # nothing generated or written
+    monkeypatch.setenv("FOLIVOX_UI_TOKEN", "short")
+    with pytest.raises(SystemExit):
+        ui_token()
 
 
 def png_bytes():

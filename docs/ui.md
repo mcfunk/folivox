@@ -19,6 +19,7 @@ folivox ui                  # opens http://127.0.0.1:8765
 folivox ui --port 9000 --no-open
 folivox ui --restart        # replace the running studio by this version, on the same port
 folivox ui --stop
+folivox ui --host 0.0.0.0 --allow-host nas.lan   # serve the network (a server; see docker.md)
 ```
 
 One studio per port: the uploads, the session and the voices are shared, and only one render runs at a time. A second
